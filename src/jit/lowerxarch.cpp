@@ -801,55 +801,53 @@ void Lowering::LowerSIMD(GenTreeSIMD* simdNode)
     }
     else if (simdNode->IsSIMDEqualityOrInequality())
     {
+        //
+        // Try to transform SIMD<OpEquality>(SIMD<And>(x, y), 0) into HWIntrinsic<TestZ>(x, y).
+        // The testz intrinsic is only supported on SSE4.1+.
+        //
+        GenTree* op1 = simdNode->gtGetOp1();
+        GenTree* op2 = simdNode->gtGetOp2();
+        if ((comp->getSIMDSupportLevel() >= SIMD_SSE4_Supported) &&
+            (op1->IsIntegralConstVector(0) || op2->IsIntegralConstVector(0)))
+        {
+            GenTree* opZero = op1->IsIntegralConstVector(0) ? op1 : op2;
+            GenTree* opOther = opZero == op1 ? op2 : op1;
+            if (opOther->OperIsSIMD() && opOther->AsSIMD()->gtSIMDIntrinsicID == SIMDIntrinsicBitwiseAnd)
+            {
+                GenTree* andOp1 = opOther->gtGetOp1();
+                GenTree* andOp2 = opOther->gtGetOp2();
+
+                BlockRange().Remove(opZero, true);
+                BlockRange().Remove(opOther);
+
+                simdNode->ChangeOper(GT_HWIntrinsic);
+                GenTreeHWIntrinsic* asHW = simdNode->AsHWIntrinsic();
+                asHW->gtOp.gtOp1 = andOp1;
+                asHW->gtOp.gtOp2 = andOp2;
+
+                assert(andOp1->gtType == TYP_SIMD16 || andOp1->gtType == TYP_SIMD32);
+
+                if (andOp1->gtType == TYP_SIMD16)
+                {
+                    asHW->gtHWIntrinsicId = NI_SSE41_TestZ;
+                }
+                else
+                {
+                    // The JIT should only use 32-byte Vector<T> on AVX2+ hardware,
+                    // and testz requires just AVX.
+                    assert(comp->compSupports(InstructionSet_AVX));
+                    asHW->gtHWIntrinsicId = NI_AVX_TestZ;
+                }
+
+                LowerHWIntrinsic(asHW);
+                return;
+            }
+        }
+
         LIR::Use simdUse;
 
         if (BlockRange().TryGetUse(simdNode, &simdUse))
         {
-            //
-            // Try to transform SIMD<OpEquality>(SIMD<And>(x, y), 0) into HWIntrinsic<TestZ>(x, y).
-            //
-            GenTree* op1 = simdNode->gtGetOp1();
-            GenTree* op2 = simdNode->gtGetOp2();
-            if (simdNode->gtSIMDIntrinsicID == SIMDIntrinsicOpEquality &&
-                (comp->getSIMDSupportLevel() >= SIMD_SSE4_Supported) &&
-                (op1->IsIntegralConstVector(0) || op2->IsIntegralConstVector(0)))
-            {
-                GenTree* opZero = op1->IsIntegralConstVector(0) ? op1 : op2;
-                GenTree* opOther = opZero == op1 ? op2 : op1;
-                if (opOther->OperIsSIMD() && opOther->AsSIMD()->gtSIMDIntrinsicID == SIMDIntrinsicBitwiseAnd)
-                {
-                    GenTree* andOp1 = opOther->gtGetOp1();
-                    GenTree* andOp2 = opOther->gtGetOp2();
-
-                    BlockRange().Remove(opZero, true);
-                    BlockRange().Remove(opOther);
-
-                    bool isNeq = simdNode->gtSIMDIntrinsicID == SIMDIntrinsicOpInEquality;
-
-                    simdNode->ChangeOper(GT_HWIntrinsic);
-                    GenTreeHWIntrinsic* asHW = simdNode->AsHWIntrinsic();
-                    asHW->gtOp.gtOp1 = andOp1;
-                    asHW->gtOp.gtOp2 = andOp2;
-
-                    if (comp->getSIMDVectorRegisterByteLength() == 16)
-                    {
-                        asHW->gtHWIntrinsicId = NI_SSE41_TestAllZeros;
-                        andOp1->ChangeType(TYP_SIMD16);
-                        andOp2->ChangeType(TYP_SIMD16);
-                    }
-                    else
-                    {
-                        assert(comp->getSIMDVectorRegisterByteLength() == 32);
-                        asHW->gtHWIntrinsicId = NI_AVX_TestZ;
-                        andOp1->ChangeType(TYP_SIMD32);
-                        andOp2->ChangeType(TYP_SIMD32);
-                    }
-
-                    LowerHWIntrinsic(asHW);
-                    return;
-                }
-            }
-
             //
             // Try to transform JTRUE(EQ|NE(SIMD<OpEquality|OpInEquality>(x, y), 0|1)) into
             // JCC(SIMD<OpEquality|OpInEquality>(x, y)). SIMD<OpEquality|OpInEquality>(x, y)
