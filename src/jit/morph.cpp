@@ -4200,6 +4200,7 @@ GenTreeCall* Compiler::fgMorphArgs(GenTreeCall* call)
 
     } // end foreach argument loop
 
+
     if (!reMorphing)
     {
         call->fgArgInfo->ArgsComplete();
@@ -4262,7 +4263,7 @@ GenTreeCall* Compiler::fgMorphArgs(GenTreeCall* call)
     // For UNIX_AMD64, the condition without hasStackArgCopy cannot catch
     // all cases of fgMakeOutgoingStructArgCopy() being called. hasStackArgCopy
     // is added to make sure to call EvalArgsToTemp.
-    if (!reMorphing && (call->fgArgInfo->HasRegArgs()))
+    if (!reMorphing && (call->fgArgInfo->HasRegArgs() || call->fgArgInfo->HasStackArgs()))
     {
         // This is the first time that we morph this call AND it has register arguments.
         // Follow into the code below and do the 'defer or eval to temp' analysis.
