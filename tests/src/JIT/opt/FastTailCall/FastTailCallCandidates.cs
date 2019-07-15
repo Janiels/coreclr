@@ -1127,7 +1127,6 @@ public class FastTailCallCandidates
     public static int StackBasedCallee(int a, int b, StructSizeThirtyTwo sstt)
     {
         int count = 0;
-        long max = sstt.a;
         for (int i = 0; i < sstt.a; ++i)
         {
             if (i % 10 == 0)
@@ -1322,8 +1321,8 @@ public class FastTailCallCandidates
     ///
     /// All targets will fast tail call
     ///
-    /// The caller uses 1 integer registers (1 args)
-    /// The callee uses 2 integer registers (2 args)
+    /// The caller uses 2 integer registers (2 args)
+    /// The callee uses 1 integer registers (1 args)
     ///
     /// Return 100 is a pass.
     /// Return 113 is a failure.
@@ -1383,8 +1382,8 @@ public class FastTailCallCandidates
     ///
     /// All targets will fast tail call
     ///
-    /// The caller uses 1 integer registers (1 args)
-    /// The callee uses 2 integer registers (2 args)
+    /// The caller uses 2 integer registers (2 args)
+    /// The callee uses 1 integer registers (1 args)
     ///
     /// Return 100 is a pass.
     /// Return 114 is a failure.
@@ -1444,8 +1443,8 @@ public class FastTailCallCandidates
     ///
     /// All targets will fast tail call
     ///
-    /// The caller uses 1 integer registers (1 args)
-    /// The callee uses 2 integer registers (2 args)
+    /// The caller uses 2 integer registers (2 args)
+    /// The callee uses 1 integer registers (1 args)
     ///
     /// Return 100 is a pass.
     /// Return 115 is a failure.
@@ -1505,8 +1504,8 @@ public class FastTailCallCandidates
     ///
     /// All targets will fast tail call
     ///
-    /// The caller uses 1 integer registers (1 args)
-    /// The callee uses 2 integer registers (2 args)
+    /// The caller uses 2 integer registers (2 args)
+    /// The callee uses 1 integer registers (1 args)
     ///
     /// Return 100 is a pass.
     /// Return 116 is a failure.
@@ -1566,8 +1565,8 @@ public class FastTailCallCandidates
     ///
     /// All targets will fast tail call
     ///
-    /// The caller uses 1 integer registers (1 args)
-    /// The callee uses 2 integer registers (2 args)
+    /// The caller uses 2 integer registers (2 args)
+    /// The callee uses 1 integer registers (1 args)
     ///
     /// Return 100 is a pass.
     /// Return 117 is a failure.
@@ -1628,8 +1627,8 @@ public class FastTailCallCandidates
     /// x64 windows will not fast tail call because the struct is passed
     /// byref.
     ///
-    /// The caller uses 1 integer registers (1 args)
-    /// The callee uses 2 integer registers (2 args)
+    /// The caller uses 2 integer registers (2 args)
+    /// The callee uses 1 integer registers (1 args)
     ///
     /// Return 100 is a pass.
     /// Return 118 is a failure.
