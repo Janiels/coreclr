@@ -2602,7 +2602,7 @@ GenTree* Compiler::fgInsertCommaFormTemp(GenTree** ppTree, CORINFO_CLASS_HANDLE 
 //    This method only computes the arg table and arg entries for the call (the fgArgInfo),
 //    and makes no modification of the args themselves.
 //
-void Compiler::fgInitArgInfo(GenTreeCall* call, bool reInitArgInfo/*=false*/)
+void Compiler::fgInitArgInfo(GenTreeCall* call)
 {
     GenTree* args;
     GenTree* argx;
@@ -2626,7 +2626,7 @@ void Compiler::fgInitArgInfo(GenTreeCall* call, bool reInitArgInfo/*=false*/)
     const unsigned maxRegArgs = MAX_REG_ARG; // other arch: fixed constant number
 #endif
 
-    if (call->fgArgInfo != nullptr && !reInitArgInfo)
+    if (call->fgArgInfo != nullptr)
     {
         // We've already initialized and set the fgArgInfo.
         return;
@@ -7625,9 +7625,6 @@ void Compiler::fgMorphTailCall(GenTreeCall* call, void* pfnCopyArgs)
     // The function is responsible for doing explicit null check when it is necessary.
     assert(!call->NeedsNullCheck());
 
-    // Force, re-evaluating the args as we have just changed the argument list.
-    fgInitArgInfo(call, /*reInitArgInfo=*/true);
-
     JITDUMP("fgMorphTailCall (after):\n");
     DISPTREE(call);
 }
@@ -8230,6 +8227,9 @@ GenTree* Compiler::fgMorphCall(GenTreeCall* call)
                 //     temp = call
                 //     ret temp
 
+                // Force re-evaluating the argInfo as the return argument has changed.
+                call->fgArgInfo = nullptr;
+
                 // Create a new temp.
                 unsigned tmpNum =
                     lvaGrabTemp(false DEBUGARG("Return value temp for multi-reg return (rejected tail call)."));
@@ -8317,6 +8317,9 @@ GenTree* Compiler::fgMorphCall(GenTreeCall* call)
         // fast calls.
         if (!canFastTailCall)
         {
+            // Force re-evaluating the argInfo. fgMorphTailCall will modify the
+            // argument list, invalidating the argInfo.
+            call->fgArgInfo = nullptr;
             fgMorphTailCall(call, pfnCopyArgs);
         }
 
@@ -8599,6 +8602,8 @@ NO_TAIL_CALL:
                 if (info.compCompHnd->isStructRequiringStackAllocRetBuf(structHnd) &&
                     !(dest->OperGet() == GT_LCL_VAR && dest->gtLclVar.gtLclNum == info.compRetBuffArg))
                 {
+                    // Force re-evaluating the argInfo as the return argument has changed.
+                    call->fgArgInfo = nullptr;
                     origDest = dest;
 
                     retValTmpNum = lvaGrabTemp(true DEBUGARG("substitute local for ret buff arg"));
