@@ -8318,10 +8318,11 @@ GenTree* Compiler::fgMorphCall(GenTreeCall* call)
         // fast calls.
         if (!canFastTailCall)
         {
+            fgMorphTailCall(call, pfnCopyArgs);
+
             // Force re-evaluating the argInfo. fgMorphTailCall will modify the
             // argument list, invalidating the argInfo.
             call->fgArgInfo = nullptr;
-            fgMorphTailCall(call, pfnCopyArgs);
         }
 
         // Implementation note : If we optimize tailcall to do a direct jump
