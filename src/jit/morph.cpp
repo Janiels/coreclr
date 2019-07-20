@@ -6989,7 +6989,7 @@ void Compiler::fgMorphCallInlineHelper(GenTreeCall* call, InlineResult* result)
 //    caller({ double, double, double, double, double, double }) // 48 byte stack
 //    callee(int, int) -- 2 int registers
 
-bool Compiler::fgCanFastTailCall(GenTreeCall* callee)
+bool Compiler::fgCanFastTailCall(GenTreeCall* callee, const char** reason)
 {
 #if FEATURE_FASTTAILCALL
     // To reach here means that the return types of the caller and callee are tail call compatible.
@@ -7244,8 +7244,11 @@ bool Compiler::fgCanFastTailCall(GenTreeCall* callee)
 #endif //  WINDOWS_AMD64_ABI
 
     reportFastTailCallDecision("Will fastTailCall", callerStackSize, calleeStackSize);
+    if (reason)
+        *reason = nullptr;
     return true;
 #else // FEATURE_FASTTAILCALL
+    *reason = "Tailcalls are not supported";
     return false;
 #endif
 }
@@ -7457,7 +7460,7 @@ void Compiler::fgMorphTailCall(GenTreeCall* call, void* pfnCopyArgs)
     // We come this route only for tail prefixed calls that cannot be dispatched as
     // fast tail calls
     assert(!call->IsImplicitTailCall());
-    assert(!fgCanFastTailCall(call));
+    assert(!fgCanFastTailCall(call, nullptr));
 
     // First move the 'this' pointer (if any) onto the regular arg list. We do this because
     // we are going to prepend special arguments onto the argument list (for non-x86 platforms),
@@ -8125,42 +8128,7 @@ GenTree* Compiler::fgMorphCall(GenTreeCall* call)
         bool canFastTailCall = false;
         if (szFailReason == nullptr)
         {
-            canFastTailCall = fgCanFastTailCall(call);
-            if (!canFastTailCall)
-            {
-                // Implicit or opportunistic tail calls are always dispatched via fast tail call
-                // mechanism and never via tail call helper for perf.
-                if (call->IsImplicitTailCall())
-                {
-                    szFailReason = "Opportunistic tail call cannot be dispatched as epilog+jmp";
-                }
-                else if (!call->IsVirtualStub() && call->HasNonStandardAddedArgs(this))
-                {
-                    // If we are here, it means that the call is an explicitly ".tail" prefixed and cannot be
-                    // dispatched as a fast tail call.
-
-                    // Methods with non-standard args will have indirection cell or cookie param passed
-                    // in callee trash register (e.g. R11). Tail call helper doesn't preserve it before
-                    // tail calling the target method and hence ".tail" prefix on such calls needs to be
-                    // ignored.
-                    //
-                    // Exception to the above rule: although Virtual Stub Dispatch (VSD) calls require
-                    // extra stub param (e.g. in R11 on Amd64), they can still be called via tail call helper.
-                    // This is done by by adding stubAddr as an additional arg before the original list of
-                    // args. For more details see fgMorphTailCall() and CreateTailCallCopyArgsThunk()
-                    // in Stublinkerx86.cpp.
-                    szFailReason = "Method with non-standard args passed in callee trash register cannot be tail "
-                                   "called via helper";
-                }
-#if defined(_TARGET_ARM64_) || defined(_TARGET_UNIX_)
-                else
-                {
-                    // NYI - TAILCALL_RECURSIVE/TAILCALL_HELPER.
-                    // So, bail out if we can't make fast tail call.
-                    szFailReason = "Non-qualified fast tail call";
-                }
-#endif
-            }
+            canFastTailCall = fgCanFastTailCall(call, &szFailReason);
         }
 
         // Clear these flags before calling fgMorphCall() to avoid recursion.
