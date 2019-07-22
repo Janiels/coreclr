@@ -7015,7 +7015,9 @@ bool Compiler::fgCanFastTailCall(GenTreeCall* callee, const char** reason)
     fgInitArgInfo(callee);
     fgArgInfo* argInfo = callee->fgArgInfo;
 
-    auto reportFastTailCallDecision = [this, callee](const char* msg, size_t callerStackSize, size_t calleeStackSize) {
+    auto reportFastTailCallDecision = [this, callee, reason](const char* msg, size_t callerStackSize, size_t calleeStackSize) {
+        if (reason)
+            *reason = msg;
 #if DEBUG
         if ((JitConfig.JitReportFastTailCallDecisions()) == 1)
         {
@@ -7248,7 +7250,8 @@ bool Compiler::fgCanFastTailCall(GenTreeCall* callee, const char** reason)
         *reason = nullptr;
     return true;
 #else // FEATURE_FASTTAILCALL
-    *reason = "Tailcalls are not supported";
+    if (reason)
+        *reason = "Tailcalls are not supported";
     return false;
 #endif
 }
