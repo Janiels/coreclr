@@ -2094,24 +2094,48 @@ void Lowering::LowerFastTailCall(GenTreeCall* call)
         // incoming args that live in that area. If we have later uses of those args, this
         // is a problem. We introduce a defensive copy into a temp here of those args that
         // potentially may cause problems.
-        for (unsigned int i = 0; i < comp->info.compArgsCount; i++)
+        for (int i = 0; i < putargs.Height(); i++)
         {
-            LclVarDsc* callerArgDsc = comp->lvaTable + i;
-            if (callerArgDsc->lvIsRegArg)
-                continue;
+            GenTreePutArgStk* put     = putargs.Bottom(i)->AsPutArgStk();
+            // This put will overwrite our incoming stack args. If there are uses
+            // of the overwritten arg then introduce a defensive copy of it.
+            unsigned int      overwrittenStart    = put->getArgOffset();
+            unsigned int      overwrittenEnd = overwrittenStart + put->getArgSize();
+            int               baseOff = -1; // Stack offset of first arg on stack
+            for (unsigned callerArgLclNum = 0; callerArgLclNum < comp->info.compArgsCount; callerArgLclNum++)
+            {
+                LclVarDsc* callerArgDsc = comp->lvaTable + callerArgLclNum;
+                if (callerArgDsc->lvIsRegArg)
+                    continue;
+                
+                if (baseOff == -1)
+                    baseOff = callerArgDsc->lvStkOffs;
 
-            assert(callerArgDsc->lvIsParam);
+                // On all ABIs the stack args should come in order.
+                assert(baseOff <= callerArgDsc->lvStkOffs);
 
-            RehomeArgForFastTailCall(i, firstPutArgStk, firstPutArgStk, call);
-            callerArgDsc = comp->lvaTable + i;
+                // Compute offset of this stack argument relative to the first stack arg.
+                // This will be its offset into the incoming arg space area.
+                unsigned int argStart = static_cast<unsigned int>(callerArgDsc->lvStkOffs - baseOff);
+                unsigned int argEnd   = argStart + callerArgDsc->lvExactSize;
 
-            if (!callerArgDsc->lvPromoted)
-                continue;
+                // If ranges do not overlap then this PUTARG_STK will not mess up the arg.
+                if ((overwrittenEnd <= argStart) || (overwrittenStart >= argEnd))
+                    continue;
 
-            unsigned int fieldsFirst = callerArgDsc->lvFieldLclStart;
-            unsigned int fieldsEnd = fieldsFirst + callerArgDsc->lvFieldCnt;
-            for (unsigned int j = fieldsFirst; j < fieldsEnd; j++)
-                RehomeArgForFastTailCall(j, firstPutArgStk, firstPutArgStk, call);
+                RehomeArgForFastTailCall(callerArgLclNum, firstPutArgStk, put, call);
+                // The call can introduce temps and invalidate the pointer.
+                callerArgDsc = comp->lvaTable + callerArgLclNum;
+
+                // For promoted locals we have more work to do as its fields could also have been invalidated.
+                if (!callerArgDsc->lvPromoted)
+                    continue;
+
+                unsigned int fieldsFirst = callerArgDsc->lvFieldLclStart;
+                unsigned int fieldsEnd   = fieldsFirst + callerArgDsc->lvFieldCnt;
+                for (unsigned int j = fieldsFirst; j < fieldsEnd; j++)
+                    RehomeArgForFastTailCall(j, firstPutArgStk, put, call);
+            }
         }
     }
 
